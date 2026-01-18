@@ -93,6 +93,12 @@ void APlatformingCharacter::Look(const FInputActionValue& Value)
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
 }
 
+void APlatformingCharacter::Sprint()
+{
+	DoSprint();
+}
+
+
 
 void APlatformingCharacter::Dash()
 {
@@ -141,6 +147,8 @@ void APlatformingCharacter::MultiJump()
 				bHasWallJumped = true;
 
 				GetWorld()->GetTimerManager().SetTimer(WallJumpTimer, this, &APlatformingCharacter::ResetWallJump, DelayBetweenWallJumps, false);
+
+				UE_LOG(LogTemp, Display, TEXT("Wall Jump"));
 			}
 			
 			// no wall jump, try a double jump next
@@ -150,11 +158,10 @@ void APlatformingCharacter::MultiJump()
 				// are we still within coyote time frames?
 				if (GetWorld()->GetTimeSeconds() - LastFallTime < MaxCoyoteTime)
 				{
-					UE_LOG(LogTemp, Warning, TEXT("Coyote Jump"));
+					UE_LOG(LogTemp, Display, TEXT("Coyote Jump"));
 
 					// use the built-in CMC functionality to do the jump
 					Jump();
-
 					// no coyote time jump
 				} else {
 		
@@ -168,6 +175,7 @@ void APlatformingCharacter::MultiJump()
 						Jump();
 					}
 				}
+				UE_LOG(LogTemp, Display, TEXT("Double Jump"));
 			}
 		}
 	}
@@ -242,7 +250,8 @@ void APlatformingCharacter::DoDash()
 		// don't restart the montage if it's already playing
 		if (AnimInstance->Montage_IsPlaying(DashMontage))
 			return;
-		
+
+		UE_LOG(LogTemp, Display, TEXT("Dashed - Gravity disabled"));
 		const float MontageLength = AnimInstance->Montage_Play(DashMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
 
 		// has the montage played successfully?
@@ -251,6 +260,13 @@ void APlatformingCharacter::DoDash()
 			AnimInstance->Montage_SetEndDelegate(OnDashMontageEnded, DashMontage);
 		}
 	}
+}
+
+void APlatformingCharacter::DoSprint()
+{
+	// Change the character's movement speed when the key is pressed (held)
+	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+	UE_LOG(LogTemp, Warning, TEXT("Sprinting Start $: %f"), SprintSpeed);
 }
 
 void APlatformingCharacter::DoJumpStart()
@@ -284,7 +300,6 @@ void APlatformingCharacter::EndDash()
 	{
 		bHasDashed = false;
 	}
-	
 }
 
 bool APlatformingCharacter::HasDoubleJumped() const
@@ -319,6 +334,10 @@ void APlatformingCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APlatformingCharacter::Move);
 		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &APlatformingCharacter::Look);
 
+		// Sprinting
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &APlatformingCharacter::Sprint);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &APlatformingCharacter::StopSprint);
+
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlatformingCharacter::Look);
 
@@ -334,6 +353,8 @@ void APlatformingCharacter::Landed(const FHitResult& Hit)
 	// reset the double jump and dash flags
 	bHasDoubleJumped = false;
 	bHasDashed = false;
+
+	UE_LOG(LogTemp, Display, TEXT("Landed - Double Jump and Dash reset"));
 	
 }
 
@@ -349,3 +370,19 @@ void APlatformingCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode
 	}
 }
 
+void APlatformingCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Store the default speed
+	DefaultMaxWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+}
+
+
+
+void APlatformingCharacter::StopSprint()
+{
+	// Revert to default speed when the key is released
+	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed;
+	UE_LOG(LogTemp, Display, TEXT("Sprinting Start $: %f"), DefaultMaxWalkSpeed);
+}

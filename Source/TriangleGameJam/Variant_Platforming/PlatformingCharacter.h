@@ -57,6 +57,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* DashAction;
 
+	/** Sprint Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* SprintAction;
+
 public:
 
 	/** Constructor */
@@ -73,11 +77,15 @@ protected:
 	/** Called for dash input */
 	void Dash();
 
+	/** Called for sprint input */
+	void Sprint();
+
 	/** Called for jump pressed to check for advanced multi-jump conditions */
 	void MultiJump();
 
 	/** Resets the wall jump input lock */
 	void ResetWallJump();
+	
 
 public:
 
@@ -101,19 +109,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
 
+	/** Handles jump pressed inputs from either controls or UI interfaces */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoSprint();
+
 protected:
 
 	/** Called from a delegate when the dash montage ends */
 	void DashMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	/** Passes control to Blueprint to enable or disable jump trails */
-	UFUNCTION(BlueprintImplementableEvent, Category="Platforming")
-	void SetJumpTrailState(bool bEnabled);
+	// UFUNCTION(BlueprintImplementableEvent, Category="Platforming")
+	// void SetJumpTrailState(bool bEnabled);
 
 public:
 
 	/** Ends the dash state */
 	void EndDash();
+
+	/** Stops sprinting */
+	void StopSprint();
 
 public:
 
@@ -125,7 +140,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Platforming")
 	bool HasWallJumped() const;
 
-public:	
+public:
+	
+	/** BeginPlay setup */
+	virtual void BeginPlay() override;
 	
 	/** EndPlay cleanup */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -146,6 +164,7 @@ protected:
 	uint8 bHasDoubleJumped : 1;
 	uint8 bHasDashed : 1;
 	uint8 bIsDashing : 1;
+	uint8 bIsSprinting : 1;
 
 	/** timer for wall jump input reset */
 	FTimerHandle WallJumpTimer;
@@ -183,6 +202,13 @@ protected:
 	/** Max amount of time that can pass since we started falling when we allow a regular jump */
 	UPROPERTY(EditAnywhere, Category="Coyote Time", meta = (ClampMin = 0, ClampMax = 5, Units = "s"))
 	float MaxCoyoteTime = 0.16f;
+
+	// Default movement speed (set in BeginPlay)
+	float DefaultMaxWalkSpeed;
+
+	// Sprint speed modifier or value
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float SprintSpeed = 800.0f;
 
 public:
 	/** Returns CameraBoom subobject **/
