@@ -103,8 +103,8 @@ void APlatformingCharacter::Dash()
 void APlatformingCharacter::MultiJump()
 {
 	// ignore jumps while dashing
-	if(bIsDashing)
-		return;
+	//if(bIsDashing)
+		//return;
 
 	// are we already in the air?
 	if (GetCharacterMovement()->IsFalling())
@@ -137,16 +137,15 @@ void APlatformingCharacter::MultiJump()
 
 				LaunchCharacter(WallJumpImpulse, true, true);
 
-				// enable the jump trail
-				SetJumpTrailState(true);
-
 				// raise the wall jump flag to prevent an immediate second wall jump
 				bHasWallJumped = true;
 
 				GetWorld()->GetTimerManager().SetTimer(WallJumpTimer, this, &APlatformingCharacter::ResetWallJump, DelayBetweenWallJumps, false);
 			}
+			
 			// no wall jump, try a double jump next
-			else
+			// test for double jump only if we haven't already tested for wall jump
+			if (!bHasWallJumped)
 			{
 				// are we still within coyote time frames?
 				if (GetWorld()->GetTimeSeconds() - LastFallTime < MaxCoyoteTime)
@@ -156,38 +155,26 @@ void APlatformingCharacter::MultiJump()
 					// use the built-in CMC functionality to do the jump
 					Jump();
 
-					// enable the jump trail
-					SetJumpTrailState(true);
-
-				// no coyote time jump
+					// no coyote time jump
 				} else {
-
-					// only double jump once while we're in the air
+		
+					// The movement component handles double jump but we still need to manage the flag for animation
 					if (!bHasDoubleJumped)
 					{
+						// raise the double jump flag
 						bHasDoubleJumped = true;
 
-						// use the built-in CMC functionality to do the double jump
+						// let the CMC handle jump
 						Jump();
-
-						// enable the jump trail
-						SetJumpTrailState(true);
 					}
-
 				}
-
-				
 			}
 		}
-
 	}
 	else
 	{
 		// we're grounded so just do a regular jump
 		Jump();
-
-		// activate the jump trail
-		SetJumpTrailState(true);
 	}
 }
 
@@ -234,25 +221,28 @@ void APlatformingCharacter::DoLook(float Yaw, float Pitch)
 void APlatformingCharacter::DoDash()
 {
 	// ignore the input if we've already dashed and have yet to reset
-	if (bHasDashed)
+	if (bHasDashed || bIsDashing)
 		return;
-
+	
 	// raise the dash flags
 	bIsDashing = true;
 	bHasDashed = true;
 
 	// disable gravity while dashing
-	GetCharacterMovement()->GravityScale = 0.0f;
-
-	// reset the character velocity so we don't carry momentum into the dash
-	GetCharacterMovement()->Velocity = FVector::ZeroVector;
-
-	// enable the jump trails
-	SetJumpTrailState(true);
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->GravityScale = 0.0f;
+		// reset the character velocity so we don't carry momentum into the dash
+		GetCharacterMovement()->Velocity = FVector::ZeroVector;
+	}
 
 	// play the dash montage
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
+		// don't restart the montage if it's already playing
+		if (AnimInstance->Montage_IsPlaying(DashMontage))
+			return;
+		
 		const float MontageLength = AnimInstance->Montage_Play(DashMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
 
 		// has the montage played successfully?
@@ -277,11 +267,8 @@ void APlatformingCharacter::DoJumpEnd()
 
 void APlatformingCharacter::DashMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	// if the montage was interrupted, end the dash
-	if (bInterrupted)
-	{
-		EndDash();
-	}
+	// always end the dash when the montage is done, whether interrupted or completed
+	EndDash();
 }
 
 void APlatformingCharacter::EndDash()
@@ -292,15 +279,12 @@ void APlatformingCharacter::EndDash()
 	// reset the dashing flag
 	bIsDashing = false;
 
-	// are we grounded after the dash?
-	if (GetCharacterMovement()->IsMovingOnGround())
+	// if we're currently on the ground, allow dashing again
+	if (GetCharacterMovement() && !GetCharacterMovement()->IsFalling())
 	{
-		// reset the dash usage flag, since we won't receive a landed event
 		bHasDashed = false;
-
-		// deactivate the jump trails
-		SetJumpTrailState(false);
 	}
+	
 }
 
 bool APlatformingCharacter::HasDoubleJumped() const
@@ -350,9 +334,7 @@ void APlatformingCharacter::Landed(const FHitResult& Hit)
 	// reset the double jump and dash flags
 	bHasDoubleJumped = false;
 	bHasDashed = false;
-
-	// deactivate the jump trail
-	SetJumpTrailState(false);
+	
 }
 
 void APlatformingCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode /*= 0*/)
