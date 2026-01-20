@@ -1,9 +1,9 @@
-#include "CameraTransitionTrigger.h"
+﻿#include "CameraTransitionTrigger.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
 
-// ?????????????????????????
+// 【关键点】这里必须引用你刚才发给我的那个角色头文件
 #include "PlatformingCharacter.h" 
 
 ACameraTransitionTrigger::ACameraTransitionTrigger()
@@ -17,7 +17,7 @@ ACameraTransitionTrigger::ACameraTransitionTrigger()
 
 void ACameraTransitionTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// ???????? APlatformingCharacter
+	// 【关键点】转换成 APlatformingCharacter
 	APlatformingCharacter* PlayerChar = Cast<APlatformingCharacter>(OtherActor);
 
 	if (PlayerChar)
@@ -29,18 +29,18 @@ void ACameraTransitionTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedCom
 
 			if (bSwitchToFixedCamera && TargetCameraActor)
 			{
-				// === ?? 2D ===
+				// === 进入 2D ===
 				NewViewTarget = TargetCameraActor;
 
-				// ???? PlatformingCharacter ???????
+				// 调用你在 PlatformingCharacter 里写的变身函数
 				PlayerChar->ToggleSideScrollMode(true);
 			}
 			else
 			{
-				// === ?? 3D ===
+				// === 回到 3D ===
 				NewViewTarget = PlayerChar;
 
-				// ????
+				// 解除变身
 				PlayerChar->ToggleSideScrollMode(false);
 			}
 
