@@ -16,7 +16,7 @@
 
 APlatformingCharacter::APlatformingCharacter()
 {
-	PrimaryActorTick.bCanEverTick = true;
+ 	PrimaryActorTick.bCanEverTick = true;
 
 	// initialize the flags
 	bHasWallJumped = false;
@@ -38,7 +38,7 @@ APlatformingCharacter::APlatformingCharacter()
 
 	// don't rotate the mesh when the controller rotates
 	bUseControllerRotationYaw = false;
-
+	
 	// Configure character movement
 	GetCharacterMovement()->GravityScale = 2.5f;
 	GetCharacterMovement()->MaxAcceleration = 1500.0f;
@@ -69,7 +69,7 @@ APlatformingCharacter::APlatformingCharacter()
 	CameraBoom->bUsePawnControlRotation = true;
 	CameraBoom->bEnableCameraLag = true;
 	CameraBoom->CameraLagSpeed = 8.0f;
-	CameraBoom->bEnableCameraRotationLag = true;
+	CameraBoom->bEnableCameraRotationLag = true;	
 	CameraBoom->CameraRotationLagSpeed = 8.0f;
 
 	// create the orbiting camera
@@ -115,16 +115,16 @@ void APlatformingCharacter::CheckForMantle()
 	{
 		return;
 	}
-
+	
 	FVector StartLocation = GetActorLocation() + (GetActorForwardVector() * 45.0f) + FVector(0, 0, 100.f);
 	FVector EndLocation = GetActorLocation() + (GetActorForwardVector() * 45.f) + FVector(0, 0, 50.f);
 	FVector BoxHalfSize(25.f, 5.f, 1.f);
 	FRotator BoxOrientation = GetActorRotation(); // Use actor rotation
-
+	 
 	FHitResult WallHit;
 	TArray<AActor*> IgnoreActors;
 	IgnoreActors.Add(this);
-
+	 
 	//  Box Trace By Channel
 	bool bWallHit = UKismetSystemLibrary::BoxTraceSingle(
 		GetWorld(),             // World Context
@@ -139,37 +139,37 @@ void APlatformingCharacter::CheckForMantle()
 		WallHit,              // OutHit
 		true                    // bIgnoreSelf
 	);
-
+	
 	if (bWallHit && WallHit.Distance > 0.f)
 	{
 		// Grab Alignment and Rotation
-
+		
 		FHitResult AlignmentHit;
 		FVector StartLocationAlignment = GetActorLocation() + (GetActorForwardVector() * 5.0f);
 		StartLocationAlignment = FVector(StartLocationAlignment.X, StartLocationAlignment.Y, WallHit.ImpactPoint.Z);
 		FVector EndLocationAlignment = WallHit.Location + (GetActorForwardVector() * 5.0f);
 		FVector BoxHalfSizeAlignment(5.f, 5.f, 5.f);
-
+	
 		bool bAlignmentHit = UKismetSystemLibrary::BoxTraceSingle(
 			GetWorld(),             // World Context
 			StartLocationAlignment,          // Start
 			EndLocationAlignment,            // End
 			BoxHalfSizeAlignment,            // HalfSize
 			FRotator(0.f, 0.f, 0.f), // Orientation
-			UEngineTypes::ConvertToTraceType(ECC_Visibility),
+			UEngineTypes::ConvertToTraceType(ECC_Visibility), 
 			false,                  // bTraceComplex
 			IgnoreActors,         // ActorsToIgnore
 			EDrawDebugTrace::None, // DrawDebugType (shows debug box for a set duration)
 			AlignmentHit,              // OutHit
 			true                    // bIgnoreSelf
 		);
-
+		
 		if (bAlignmentHit)
 		{
 			// Align With Ledge
 			UE_LOG(LogTemp, Display, TEXT("Ledge detected, starting mantle"));
 			bIsMantled = true;
-
+			
 			if (const AActor* HitActor = AlignmentHit.GetActor())
 			{
 				FVector Origin;
@@ -194,7 +194,7 @@ void APlatformingCharacter::StartLedgeGrab(const FVector& LedgeLocation, const F
 	SetActorLocation(LedgeLocation, false, nullptr, ETeleportType::TeleportPhysics);
 	SetActorRotation(LedgeNormal);
 
-
+	
 	// stop any velocity and fully disable movement so character stays locked in place
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None); // sets movement mode to MOVE_None
@@ -203,7 +203,7 @@ void APlatformingCharacter::StartLedgeGrab(const FVector& LedgeLocation, const F
 	MantleStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	MantleForwardHoldStartTime = 0.0f;
 	bForwardHoldActive = false;
-
+	
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
 		// don't restart the montage if it's already playing
@@ -227,7 +227,7 @@ void APlatformingCharacter::StopLedgeGrab()
 				AnimInstance->Montage_Stop(BlendOutTime, LedgeGrabMontage);
 			}
 		}
-
+	
 		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
 		bIsMantled = false;
 
@@ -261,7 +261,7 @@ void APlatformingCharacter::MultiJump()
 
 			if (GetWorld()->SweepSingleByChannel(OutHit, TraceStart, TraceEnd, FQuat(), ECollisionChannel::ECC_Visibility, TraceShape, QueryParams))
 			{
-
+				
 				// rotate the character to face away from the wall, so we're correctly oriented for the next wall jump
 				FRotator WallOrientation = OutHit.ImpactNormal.ToOrientationRotator();
 				WallOrientation.Pitch = 0.0f;
@@ -281,7 +281,7 @@ void APlatformingCharacter::MultiJump()
 
 				UE_LOG(LogTemp, Display, TEXT("Wall Jump"));
 			}
-
+			
 			// no wall jump, try a double jump next
 			// test for double jump only if we haven't already tested for wall jump
 			if (!bHasWallJumped)
@@ -294,9 +294,8 @@ void APlatformingCharacter::MultiJump()
 					// use the built-in CMC functionality to do the jump
 					Jump();
 					// no coyote time jump
-				}
-				else {
-
+				} else {
+		
 					// The movement component handles double jump but we still need to manage the flag for animation
 					if (!bHasDoubleJumped)
 					{
@@ -324,58 +323,36 @@ void APlatformingCharacter::ResetWallJump()
 	bHasWallJumped = false;
 }
 
-// =========================================================================================
-// [Game Jam Modification] - Updated DoMove to handle 2D Side Scrolling
-// =========================================================================================
 void APlatformingCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
-		// Momentarily disable movement inputs if we've just wall jumped
+		// momentarily disable movement inputs if we've just wall jumped
 		if (!bHasWallJumped)
 		{
-			// ====================================================================
-			// 1. Handle Mantling/Ledge Grab Logic
-			//    (Check this first to allow 2D inputs to trigger climbing)
-			// ====================================================================
+			// find out which way is forward
+			const FRotator Rotation = GetController()->GetControlRotation();
+			const FRotator YawRotation(0, Rotation.Yaw, 0);
+
+			// get forward vector
+			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+
+			// get right vector 
+			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
 			if (bIsMantled)
 			{
-				// Define the input used for climbing
-				float ClimbInput = Forward; // Default 3D behavior: Forward (W) climbs
-
-				// [Game Jam] In 2D Mode, map Right/Left input (A/D) to "Climb Up"
-				if (bIsSideScrollMode)
+				// immediate release backwards: let player drop/unmantle
+				if (Forward < 0)
 				{
-					// If pressing A or D, treat it as pressing W to climb up
-					if (FMath::Abs(Right) > 0.1f)
-					{
-						ClimbInput = 1.0f;
-					}
-					// If pressing S (Backwards), treat it as dropping down
-					else if (Forward < -0.1f)
-					{
-						ClimbInput = -1.0f;
-					}
-					else
-					{
-						ClimbInput = 0.0f;
-					}
-				}
-
-				// --- Existing Team Logic (Modified to use ClimbInput) ---
-
-				// Negative input: Let player drop/unmantle
-				if (ClimbInput < 0)
-				{
-					// Cancel any forward-hold timing
+					// cancel any forward-hold timing
 					MantleForwardHoldStartTime = 0.0f;
 					bForwardHoldActive = false;
 					StopLedgeGrab();
 				}
-				// Positive input: Climb up
-				else if (ClimbInput > 0)
+				else if (Forward > 0)
 				{
-					// Start or continue the forward-hold timer
+					// start or continue the forward-hold timer
 					const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 					if (!bForwardHoldActive)
 					{
@@ -386,10 +363,9 @@ void APlatformingCharacter::DoMove(float Right, float Forward)
 					{
 						if ((Now - MantleForwardHoldStartTime) >= ClimbUpHoldThreshold)
 						{
-							// Held input long enough -> Climb up
+							// held forward long enough -> climb up
 							ClimbUpLedge();
-
-							// Reset forward-hold after climbing to avoid repeat calls
+							// reset forward-hold after climbing to avoid repeat calls
 							bForwardHoldActive = false;
 							MantleForwardHoldStartTime = 0.0f;
 						}
@@ -397,41 +373,15 @@ void APlatformingCharacter::DoMove(float Right, float Forward)
 				}
 				else
 				{
-					// No input: Reset hold timer
+					// no forward input: reset hold timer
 					MantleForwardHoldStartTime = 0.0f;
 					bForwardHoldActive = false;
 				}
-
-				// If mantling, do not process standard movement
-				return;
 			}
-
-			// ====================================================================
-			// 2. Handle Movement (If not mantling)
-			// ====================================================================
-
-			if (bIsSideScrollMode)
-			{
-				// [Game Jam] 2D Mode Logic
-				// Move along world Y-axis (RightVector). Ignore Forward input (W/S).
-				AddMovementInput(FVector::RightVector, Right);
-			}
-			else
-			{
-				// [Original] 3D Mode Logic (Camera Relative)
-				const FRotator Rotation = GetController()->GetControlRotation();
-				const FRotator YawRotation(0, Rotation.Yaw, 0);
-
-				// Get forward vector
-				const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-
-				// Get right vector 
-				const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-				// Add movement 
-				AddMovementInput(ForwardDirection, Forward);
-				AddMovementInput(RightDirection, Right);
-			}
+			
+			// add movement 
+			AddMovementInput(ForwardDirection, Forward);
+			AddMovementInput(RightDirection, Right);
 		}
 	}
 }
@@ -451,7 +401,7 @@ void APlatformingCharacter::DoDash()
 	// ignore the input if we've already dashed and have yet to reset
 	if (bHasDashed || bIsDashing || bIsMantled)
 		return;
-
+	
 	// raise the dash flags
 	bIsDashing = true;
 	bHasDashed = true;
@@ -496,7 +446,7 @@ void APlatformingCharacter::DoJumpStart()
 		// End the ledge grab and allow movement
 		StopLedgeGrab();
 		//GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
-
+		
 
 		// Try to perform a wall-jump off the ledge
 		// FHitResult OutHit;
@@ -528,7 +478,7 @@ void APlatformingCharacter::DoJumpStart()
 		// }
 		// return;
 	}
-
+		
 	// handle special jump cases
 	MultiJump();
 }
@@ -613,7 +563,7 @@ void APlatformingCharacter::Landed(const FHitResult& Hit)
 	bHasDashed = false;
 
 	UE_LOG(LogTemp, Display, TEXT("Landed - Double Jump and Dash reset"));
-
+	
 }
 
 void APlatformingCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode /*= 0*/)
@@ -653,38 +603,4 @@ void APlatformingCharacter::StopSprint()
 	// Revert to default speed when the key is released
 	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed;
 	UE_LOG(LogTemp, Display, TEXT("Sprinting Start $: %f"), DefaultMaxWalkSpeed);
-}
-
-// =========================================================================================
-// [Game Jam Modification] - Function to switch modes (Locked X-Axis)
-// =========================================================================================
-void APlatformingCharacter::ToggleSideScrollMode(bool bEnable)
-{
-	bIsSideScrollMode = bEnable;
-
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	if (!MoveComp) return;
-
-	if (bEnable) // === Enter 2D Mode ===
-	{
-		// 1. Lock X-Axis (Depth), Allow Movement on Y (Left/Right) and Z (Up/Down)
-		//    Normal = (1, 0, 0)
-		MoveComp->SetPlaneConstraintNormal(FVector(1.0f, 0.0f, 0.0f));
-		MoveComp->bConstrainToPlane = true;
-
-		// 2. Orient Rotation to Movement (Crucial for Mantling!)
-		//    This ensures when you move Right (+Y), the character faces Right.
-		//    The teammate's CheckForMantle() uses GetActorForwardVector(), so this makes it work!
-		MoveComp->bOrientRotationToMovement = true;
-
-		// 3. Disable Controller Rotation (Don't let mouse turn the character)
-		bUseControllerRotationYaw = false;
-	}
-	else // === Return to 3D Mode ===
-	{
-		// Un-constrain movement
-		MoveComp->bConstrainToPlane = false;
-
-		// Restore any other 3D settings if needed (usually defaults are fine)
-	}
 }
