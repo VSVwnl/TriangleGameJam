@@ -203,7 +203,7 @@ protected:
 
 	/** Radius of the wall jump sphere trace check */
 	UPROPERTY(EditAnywhere, Category="Wall Jump", meta = (ClampMin = 0, ClampMax = 100, Units = "cm"))
-	float WallJumpTraceRadius = 50.0f;
+	float WallJumpTraceRadius = 25.0f;
 
 	/** Impulse to apply away from the wall when wall jumping */
 	UPROPERTY(EditAnywhere, Category="Wall Jump", meta = (ClampMin = 0, ClampMax = 10000, Units = "cm/s"))
