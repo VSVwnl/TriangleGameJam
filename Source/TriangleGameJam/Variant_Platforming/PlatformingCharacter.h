@@ -22,6 +22,15 @@ class UAnimMontage;
  *  - Wall Jump
  *  - Dash
  */
+
+UENUM(BlueprintType)
+enum class EPlatformingMovementState : uint8
+{
+	Normal,
+	LedgeGrabbing,
+	Climbing
+};
+
 UCLASS(abstract)
 class APlatformingCharacter : public ACharacter
 {
@@ -66,6 +75,12 @@ public:
 	/** Constructor */
 	APlatformingCharacter();
 
+	/** Event Tick*/
+	virtual void Tick(float DeltaTime) override;
+	
+	/** BeginPlay setup */
+	virtual void BeginPlay() override;
+
 protected:
 
 	/** Called for movement input */
@@ -85,7 +100,19 @@ protected:
 
 	/** Resets the wall jump input lock */
 	void ResetWallJump();
-	
+
+	// Check for mantle opportunity in front of the character
+	void CheckForMantle();
+
+	// Initiates a ledge grab at the specified location and normal
+	void StartLedgeGrab(const FVector& LedgeLocation, const FRotator& LedgeNormal);
+
+	// Stops the ledge grab and returns to normal movement
+	UFUNCTION(BlueprintCallable, Category="Mantle")
+	void StopLedgeGrab();
+
+	// Completes the ledge climb and places the character on top of the ledge
+	void ClimbUpLedge();
 
 public:
 
@@ -118,9 +145,6 @@ protected:
 	/** Called from a delegate when the dash montage ends */
 	void DashMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
-	/** Passes control to Blueprint to enable or disable jump trails */
-	// UFUNCTION(BlueprintImplementableEvent, Category="Platforming")
-	// void SetJumpTrailState(bool bEnabled);
 
 public:
 
@@ -129,7 +153,7 @@ public:
 
 	/** Stops sprinting */
 	void StopSprint();
-
+	
 public:
 
 	/** Returns true if the character has just double jumped */
@@ -141,9 +165,6 @@ public:
 	bool HasWallJumped() const;
 
 public:
-	
-	/** BeginPlay setup */
-	virtual void BeginPlay() override;
 	
 	/** EndPlay cleanup */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -166,6 +187,9 @@ protected:
 	uint8 bIsDashing : 1;
 	uint8 bIsSprinting : 1;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+	uint8 bIsMantled : 1;
+
 	/** timer for wall jump input reset */
 	FTimerHandle WallJumpTimer;
 
@@ -178,7 +202,7 @@ protected:
 
 	/** Radius of the wall jump sphere trace check */
 	UPROPERTY(EditAnywhere, Category="Wall Jump", meta = (ClampMin = 0, ClampMax = 100, Units = "cm"))
-	float WallJumpTraceRadius = 25.0f;
+	float WallJumpTraceRadius = 50.0f;
 
 	/** Impulse to apply away from the wall when wall jumping */
 	UPROPERTY(EditAnywhere, Category="Wall Jump", meta = (ClampMin = 0, ClampMax = 10000, Units = "cm/s"))
@@ -196,6 +220,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Dash")
 	UAnimMontage* DashMontage;
 
+	/** AnimMontage to use for the Ledge Grab action */
+	UPROPERTY(EditAnywhere, Category="Mantle")
+	UAnimMontage* LedgeGrabMontage;
+
+	/** AnimMontage to use for the Ledge Grab action */
+	UPROPERTY(EditAnywhere, Category="Mantle")
+	UAnimMontage* ClimbLedgeMontage;
+	
 	/** Last recorded time when this character started falling */
 	float LastFallTime = 0.0f;
 
@@ -210,6 +242,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float SprintSpeed = 800.0f;
 
+	/** Seconds to wait after releasing a ledge before allowing mantle checks again */
+	UPROPERTY(EditAnywhere, Category = "Ledge")
+	float LedgeRegrabDelay = 0.25f;
+
+	/** World time when the ledge was last released (used to block immediate regrab) */
+	float LastLedgeReleaseTime = -1000.0f;
+	
 public:
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }

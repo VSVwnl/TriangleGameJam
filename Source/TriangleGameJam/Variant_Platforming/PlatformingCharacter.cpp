@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
-
 #include "PlatformingCharacter.h"
-
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -12,6 +9,9 @@
 #include "EnhancedInputComponent.h"
 #include "TimerManager.h"
 #include "Engine/LocalPlayer.h"
+#include "DrawDebugHelpers.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Engine/EngineTypes.h"
 
 APlatformingCharacter::APlatformingCharacter()
 {
@@ -106,12 +106,176 @@ void APlatformingCharacter::Dash()
 	DoDash();
 }
 
+/** Check for mantle opportunity in front of the character */
+void APlatformingCharacter::CheckForMantle()
+{
+	// prevent immediate re-mantle after release
+	if (GetWorld() && (GetWorld()->GetTimeSeconds() - LastLedgeReleaseTime) < LedgeRegrabDelay)
+	{
+		return;
+	}
+	
+	FVector StartLocation = GetActorLocation() + (GetActorForwardVector() * 45.0f) + FVector(0, 0, 100.f);
+	FVector EndLocation = GetActorLocation() + (GetActorForwardVector() * 45.f) + FVector(0, 0, 50.f);
+	FVector BoxHalfSize(25.f, 5.f, 1.f);
+	FRotator BoxOrientation = GetActorRotation(); // Use actor rotation
+	 
+	FHitResult WallHit;
+	TArray<AActor*> IgnoreActors;
+	IgnoreActors.Add(this);
+	 
+	//  Box Trace By Channel
+	bool bWallHit = UKismetSystemLibrary::BoxTraceSingle(
+		GetWorld(),             // World Context
+		StartLocation,          // Start
+		EndLocation,            // End
+		BoxHalfSize,            // HalfSize
+		BoxOrientation,         // Orientation
+		UEngineTypes::ConvertToTraceType(ECC_Visibility), // TraceChannel
+		false,                  // bTraceComplex
+		IgnoreActors,         // ActorsToIgnore
+		EDrawDebugTrace::None, // DrawDebugType (shows debug box for a set duration)
+		WallHit,              // OutHit
+		true                    // bIgnoreSelf
+	);
+	
+	if (bWallHit && WallHit.Distance > 0.f)
+	{
+		// Grab Alignment and Rotation
+		
+		FHitResult AlignmentHit;
+		FVector StartLocationAlignment = GetActorLocation() + (GetActorForwardVector() * 5.0f);
+		StartLocationAlignment = FVector(StartLocationAlignment.X, StartLocationAlignment.Y, WallHit.ImpactPoint.Z);
+		FVector EndLocationAlignment = WallHit.Location + (GetActorForwardVector() * 5.0f);
+		FVector BoxHalfSizeAlignment(5.f, 5.f, 5.f);
+	
+		bool bAlignmentHit = UKismetSystemLibrary::BoxTraceSingle(
+			GetWorld(),             // World Context
+			StartLocationAlignment,          // Start
+			EndLocationAlignment,            // End
+			BoxHalfSizeAlignment,            // HalfSize
+			FRotator(0.f, 0.f, 0.f), // Orientation
+			UEngineTypes::ConvertToTraceType(ECC_Visibility), 
+			false,                  // bTraceComplex
+			IgnoreActors,         // ActorsToIgnore
+			EDrawDebugTrace::None, // DrawDebugType (shows debug box for a set duration)
+			AlignmentHit,              // OutHit
+			true                    // bIgnoreSelf
+		);
+		
+		if (bAlignmentHit)
+		{
+			// Align With Ledge
+			UE_LOG(LogTemp, Display, TEXT("Ledge detected, starting mantle"));
+			bIsMantled = true;
+			
+			if (const AActor* HitActor = AlignmentHit.GetActor())
+			{
+				FVector Origin;
+				FVector BoxExtent;
+				HitActor->GetActorBounds(false, Origin, BoxExtent);
+				float const GrabHeight = (AlignmentHit.Location.Z) - 55.f; // Adjust for character half height
+				float const XValueOffset = AlignmentHit.Location.X - (GetActorForwardVector() * 22.f).X;
+				float const YValueOffset = AlignmentHit.Location.Y - (GetActorForwardVector() * 22.f).Y;
+				FVector FinalGrabLocation = FVector(XValueOffset, YValueOffset, GrabHeight);
+				FRotator FinalGrabOrientation = (AlignmentHit.Normal * -1.0f).Rotation();
+
+				// Use a helper to start the ledge grab (snaps location and disables movement cleanly)
+				StartLedgeGrab(FinalGrabLocation, FinalGrabOrientation);
+			}
+		}
+	}
+}
+
+void APlatformingCharacter::StartLedgeGrab(const FVector& LedgeLocation, const FRotator& LedgeNormal)
+{
+	// snap exactly to the ledge
+	SetActorLocation(LedgeLocation, false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorRotation(LedgeNormal);
+
+	
+	// stop any velocity and fully disable movement so character stays locked in place
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None); // sets movement mode to MOVE_None
+	
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		// don't restart the montage if it's already playing
+		if (AnimInstance->Montage_IsPlaying(LedgeGrabMontage))
+			return;
+
+		UE_LOG(LogTemp, Display, TEXT("Mantling"));
+		const float MontageLength = AnimInstance->Montage_Play(LedgeGrabMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
+	}
+}
+
+void APlatformingCharacter::StopLedgeGrab()
+{
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		if (AnimInstance->Montage_IsPlaying(LedgeGrabMontage))
+		{
+			const float BlendOutTime = 0.15f;
+			AnimInstance->Montage_Stop(BlendOutTime, LedgeGrabMontage);
+		}
+	}
+	
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+	bIsMantled = false;
+
+	// block mantle checks for a short time so the player can step away
+	LastLedgeReleaseTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	
+}
+
+void APlatformingCharacter::ClimbUpLedge()
+{
+	// Check for enough space for capsule collision at the top of the ledge
+	FVector CapsuleLocation = GetActorLocation() + FVector(30.f, 0.f, 145.f); // Move up by half capsule height
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+	FHitResult OutHit;
+
+	bool bBlocked = GetWorld()->SweepSingleByChannel(
+		OutHit,
+		CapsuleLocation,
+		CapsuleLocation,
+		FQuat::Identity,
+		ECC_Visibility,
+		FCollisionShape::MakeCapsule(GetCapsuleComponent()->GetScaledCapsuleRadius(), GetCapsuleComponent()->GetScaledCapsuleHalfHeight()),
+		QueryParams
+	);
+
+	// Draw debug capsule to visualize the check (for testing purposes)
+	DrawDebugCapsule(GetWorld(), CapsuleLocation, GetCapsuleComponent()->GetScaledCapsuleHalfHeight(), GetCapsuleComponent()->GetScaledCapsuleRadius(), FQuat::Identity, bBlocked ? FColor::Red : FColor::Green, false, 2.0f);
+
+	if (bBlocked)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not enough space to climb ledge!"));
+		return; // Not enough space to climb
+	}
+	
+	// play climb montage
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		// don't restart the montage if it's already playing
+		if (AnimInstance->Montage_IsPlaying(ClimbLedgeMontage))
+			return;
+
+		UE_LOG(LogTemp, Display, TEXT("Climbing Ledge"));
+		const float MontageLength = AnimInstance->Montage_Play(ClimbLedgeMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
+	}
+
+	// Set movement mode back to walking
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+	bIsMantled = false;
+
+	LastLedgeReleaseTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+}
+
+
 void APlatformingCharacter::MultiJump()
 {
-	// ignore jumps while dashing
-	//if(bIsDashing)
-		//return;
-
 	// are we already in the air?
 	if (GetCharacterMovement()->IsFalling())
 	{
@@ -131,6 +295,7 @@ void APlatformingCharacter::MultiJump()
 
 			if (GetWorld()->SweepSingleByChannel(OutHit, TraceStart, TraceEnd, FQuat(), ECollisionChannel::ECC_Visibility, TraceShape, QueryParams))
 			{
+				
 				// rotate the character to face away from the wall, so we're correctly oriented for the next wall jump
 				FRotator WallOrientation = OutHit.ImpactNormal.ToOrientationRotator();
 				WallOrientation.Pitch = 0.0f;
@@ -209,6 +374,16 @@ void APlatformingCharacter::DoMove(float Right, float Forward)
 			// get right vector 
 			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
+			if (Forward < 0 && bIsMantled)
+			{
+				StopLedgeGrab();
+			}
+
+			if (Forward > 0 && bIsMantled)
+			{
+				ClimbUpLedge();
+			}
+			
 			// add movement 
 			AddMovementInput(ForwardDirection, Forward);
 			AddMovementInput(RightDirection, Right);
@@ -229,7 +404,7 @@ void APlatformingCharacter::DoLook(float Yaw, float Pitch)
 void APlatformingCharacter::DoDash()
 {
 	// ignore the input if we've already dashed and have yet to reset
-	if (bHasDashed || bIsDashing)
+	if (bHasDashed || bIsDashing || bIsMantled)
 		return;
 	
 	// raise the dash flags
@@ -271,6 +446,44 @@ void APlatformingCharacter::DoSprint()
 
 void APlatformingCharacter::DoJumpStart()
 {
+	if (bIsMantled)
+	{
+		// End the ledge grab and allow movement
+		StopLedgeGrab();
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
+		
+
+		// Try to perform a wall-jump off the ledge
+		FHitResult OutHit;
+		const FVector TraceStart = GetActorLocation();
+		const FVector TraceEnd = TraceStart + (GetActorForwardVector() * WallJumpTraceDistance);
+		const FCollisionShape TraceShape = FCollisionShape::MakeSphere(WallJumpTraceRadius);
+
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(this);
+
+		if (GetWorld()->SweepSingleByChannel(OutHit, TraceStart, TraceEnd, FQuat(), ECollisionChannel::ECC_Visibility, TraceShape, QueryParams))
+		{
+			// Face away from the wall and apply wall-jump impulse
+			FRotator WallOrientation = OutHit.ImpactNormal.ToOrientationRotator();
+			WallOrientation.Pitch = 0.0f;
+			WallOrientation.Roll = 0.0f;
+			SetActorRotation(WallOrientation);
+
+			const FVector WallJumpImpulse = (OutHit.ImpactNormal * WallJumpBounceImpulse) + (FVector::UpVector * WallJumpVerticalImpulse);
+			LaunchCharacter(WallJumpImpulse, true, true);
+
+			bHasWallJumped = true;
+			if (GetWorld())
+			{
+				GetWorld()->GetTimerManager().SetTimer(WallJumpTimer, this, &APlatformingCharacter::ResetWallJump, DelayBetweenWallJumps, false);
+			}
+
+			UE_LOG(LogTemp, Display, TEXT("Wall Jump from ledge"));
+		}
+		return;
+	}
+		
 	// handle special jump cases
 	MultiJump();
 }
@@ -378,7 +591,17 @@ void APlatformingCharacter::BeginPlay()
 	DefaultMaxWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
 }
 
+void APlatformingCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
 
+	// Check for mantle opportunity each frame
+	if (GetCharacterMovement()->MovementMode == EMovementMode::MOVE_Falling && !bIsMantled)
+	{
+		// Only check for mantle when falling
+		CheckForMantle();
+	}
+}
 
 void APlatformingCharacter::StopSprint()
 {
