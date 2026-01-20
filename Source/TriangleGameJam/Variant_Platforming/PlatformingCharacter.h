@@ -112,6 +112,7 @@ protected:
 	void StopLedgeGrab();
 
 	// Completes the ledge climb and places the character on top of the ledge
+	UFUNCTION(BlueprintImplementableEvent, Category = "MyCategory")
 	void ClimbUpLedge();
 
 public:
@@ -256,4 +257,12 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
+private:
+
+	// Mantle variables to manage forward-hold to climb
+	float MantleStartTime = 0.0f;
+	float MantleForwardHoldStartTime = 0.0f;
+	bool bForwardHoldActive = false;
+	float ClimbUpHoldThreshold = 0.4f; // seconds required holding forward to climb (tweakable)
+	
 };

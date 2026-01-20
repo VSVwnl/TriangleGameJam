@@ -13,6 +13,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Engine/EngineTypes.h"
 
+
 APlatformingCharacter::APlatformingCharacter()
 {
  	PrimaryActorTick.bCanEverTick = true;
@@ -197,6 +198,11 @@ void APlatformingCharacter::StartLedgeGrab(const FVector& LedgeLocation, const F
 	// stop any velocity and fully disable movement so character stays locked in place
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None); // sets movement mode to MOVE_None
+
+	// record mantle start time and reset forward-hold
+	MantleStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	MantleForwardHoldStartTime = 0.0f;
+	bForwardHoldActive = false;
 	
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
@@ -211,68 +217,28 @@ void APlatformingCharacter::StartLedgeGrab(const FVector& LedgeLocation, const F
 
 void APlatformingCharacter::StopLedgeGrab()
 {
-	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	if (!GetCharacterMovement()->IsFalling())
 	{
-		if (AnimInstance->Montage_IsPlaying(LedgeGrabMontage))
+		if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 		{
-			const float BlendOutTime = 0.15f;
-			AnimInstance->Montage_Stop(BlendOutTime, LedgeGrabMontage);
+			if (AnimInstance->Montage_IsPlaying(LedgeGrabMontage))
+			{
+				const float BlendOutTime = 0.15f;
+				AnimInstance->Montage_Stop(BlendOutTime, LedgeGrabMontage);
+			}
 		}
-	}
 	
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
-	bIsMantled = false;
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+		bIsMantled = false;
 
-	// block mantle checks for a short time so the player can step away
-	LastLedgeReleaseTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	
+		// block mantle checks for a short time so the player can step away
+		LastLedgeReleaseTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+
+		// reset forward-hold state
+		MantleForwardHoldStartTime = 0.0f;
+		bForwardHoldActive = false;
+	}
 }
-
-void APlatformingCharacter::ClimbUpLedge()
-{
-	// Check for enough space for capsule collision at the top of the ledge
-	FVector CapsuleLocation = GetActorLocation() + FVector(30.f, 0.f, 145.f); // Move up by half capsule height
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(this);
-	FHitResult OutHit;
-
-	bool bBlocked = GetWorld()->SweepSingleByChannel(
-		OutHit,
-		CapsuleLocation,
-		CapsuleLocation,
-		FQuat::Identity,
-		ECC_Visibility,
-		FCollisionShape::MakeCapsule(GetCapsuleComponent()->GetScaledCapsuleRadius(), GetCapsuleComponent()->GetScaledCapsuleHalfHeight()),
-		QueryParams
-	);
-
-	// Draw debug capsule to visualize the check (for testing purposes)
-	DrawDebugCapsule(GetWorld(), CapsuleLocation, GetCapsuleComponent()->GetScaledCapsuleHalfHeight(), GetCapsuleComponent()->GetScaledCapsuleRadius(), FQuat::Identity, bBlocked ? FColor::Red : FColor::Green, false, 2.0f);
-
-	if (bBlocked)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Not enough space to climb ledge!"));
-		return; // Not enough space to climb
-	}
-	
-	// play climb montage
-	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
-	{
-		// don't restart the montage if it's already playing
-		if (AnimInstance->Montage_IsPlaying(ClimbLedgeMontage))
-			return;
-
-		UE_LOG(LogTemp, Display, TEXT("Climbing Ledge"));
-		const float MontageLength = AnimInstance->Montage_Play(ClimbLedgeMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
-	}
-
-	// Set movement mode back to walking
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
-	bIsMantled = false;
-
-	LastLedgeReleaseTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-}
-
 
 void APlatformingCharacter::MultiJump()
 {
@@ -374,14 +340,43 @@ void APlatformingCharacter::DoMove(float Right, float Forward)
 			// get right vector 
 			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-			if (Forward < 0 && bIsMantled)
+			if (bIsMantled)
 			{
-				StopLedgeGrab();
-			}
-
-			if (Forward > 0 && bIsMantled)
-			{
-				ClimbUpLedge();
+				// immediate release backwards: let player drop/unmantle
+				if (Forward < 0)
+				{
+					// cancel any forward-hold timing
+					MantleForwardHoldStartTime = 0.0f;
+					bForwardHoldActive = false;
+					StopLedgeGrab();
+				}
+				else if (Forward > 0)
+				{
+					// start or continue the forward-hold timer
+					const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+					if (!bForwardHoldActive)
+					{
+						bForwardHoldActive = true;
+						MantleForwardHoldStartTime = Now;
+					}
+					else
+					{
+						if ((Now - MantleForwardHoldStartTime) >= ClimbUpHoldThreshold)
+						{
+							// held forward long enough -> climb up
+							ClimbUpLedge();
+							// reset forward-hold after climbing to avoid repeat calls
+							bForwardHoldActive = false;
+							MantleForwardHoldStartTime = 0.0f;
+						}
+					}
+				}
+				else
+				{
+					// no forward input: reset hold timer
+					MantleForwardHoldStartTime = 0.0f;
+					bForwardHoldActive = false;
+				}
 			}
 			
 			// add movement 
@@ -450,38 +445,38 @@ void APlatformingCharacter::DoJumpStart()
 	{
 		// End the ledge grab and allow movement
 		StopLedgeGrab();
-		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
+		//GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
 		
 
 		// Try to perform a wall-jump off the ledge
-		FHitResult OutHit;
-		const FVector TraceStart = GetActorLocation();
-		const FVector TraceEnd = TraceStart + (GetActorForwardVector() * WallJumpTraceDistance);
-		const FCollisionShape TraceShape = FCollisionShape::MakeSphere(WallJumpTraceRadius);
-
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(this);
-
-		if (GetWorld()->SweepSingleByChannel(OutHit, TraceStart, TraceEnd, FQuat(), ECollisionChannel::ECC_Visibility, TraceShape, QueryParams))
-		{
-			// Face away from the wall and apply wall-jump impulse
-			FRotator WallOrientation = OutHit.ImpactNormal.ToOrientationRotator();
-			WallOrientation.Pitch = 0.0f;
-			WallOrientation.Roll = 0.0f;
-			SetActorRotation(WallOrientation);
-
-			const FVector WallJumpImpulse = (OutHit.ImpactNormal * WallJumpBounceImpulse) + (FVector::UpVector * WallJumpVerticalImpulse);
-			LaunchCharacter(WallJumpImpulse, true, true);
-
-			bHasWallJumped = true;
-			if (GetWorld())
-			{
-				GetWorld()->GetTimerManager().SetTimer(WallJumpTimer, this, &APlatformingCharacter::ResetWallJump, DelayBetweenWallJumps, false);
-			}
-
-			UE_LOG(LogTemp, Display, TEXT("Wall Jump from ledge"));
-		}
-		return;
+		// FHitResult OutHit;
+		// const FVector TraceStart = GetActorLocation();
+		// const FVector TraceEnd = TraceStart + (GetActorForwardVector() * WallJumpTraceDistance);
+		// const FCollisionShape TraceShape = FCollisionShape::MakeSphere(WallJumpTraceRadius);
+		//
+		// FCollisionQueryParams QueryParams;
+		// QueryParams.AddIgnoredActor(this);
+		//
+		// if (GetWorld()->SweepSingleByChannel(OutHit, TraceStart, TraceEnd, FQuat(), ECollisionChannel::ECC_Visibility, TraceShape, QueryParams))
+		// {
+		// 	// Face away from the wall and apply wall-jump impulse
+		// 	FRotator WallOrientation = OutHit.ImpactNormal.ToOrientationRotator();
+		// 	WallOrientation.Pitch = 0.0f;
+		// 	WallOrientation.Roll = 0.0f;
+		// 	SetActorRotation(WallOrientation);
+		//
+		// 	const FVector WallJumpImpulse = (OutHit.ImpactNormal * WallJumpBounceImpulse) + (FVector::UpVector * WallJumpVerticalImpulse);
+		// 	LaunchCharacter(WallJumpImpulse, true, true);
+		//
+		// 	bHasWallJumped = true;
+		// 	if (GetWorld())
+		// 	{
+		// 		GetWorld()->GetTimerManager().SetTimer(WallJumpTimer, this, &APlatformingCharacter::ResetWallJump, DelayBetweenWallJumps, false);
+		// 	}
+		//
+		// 	UE_LOG(LogTemp, Display, TEXT("Wall Jump from ledge"));
+		// }
+		// return;
 	}
 		
 	// handle special jump cases
