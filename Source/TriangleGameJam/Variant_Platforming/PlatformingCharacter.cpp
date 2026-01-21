@@ -94,6 +94,52 @@ void APlatformingCharacter::Look(const FInputActionValue& Value)
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
 }
 
+void APlatformingCharacter::DoLook(float Yaw, float Pitch)
+{
+	if (GetController() != nullptr)
+	{
+		// add yaw and pitch input to controller
+		AddControllerYawInput(Yaw);
+		AddControllerPitchInput(Pitch);
+	}
+}
+
+void APlatformingCharacter::DoDash()
+{
+	// ignore the input if we've already dashed and have yet to reset
+	if (bHasDashed || bIsDashing || bIsMantled)
+		return;
+
+	// raise the dash flags
+	bIsDashing = true;
+	bHasDashed = true;
+
+	// disable gravity while dashing
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->GravityScale = 0.0f;
+		// reset the character velocity so we don't carry momentum into the dash
+		GetCharacterMovement()->Velocity = FVector::ZeroVector;
+	}
+
+	// play the dash montage
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		// don't restart the montage if it's already playing
+		if (AnimInstance->Montage_IsPlaying(DashMontage))
+			return;
+
+		UE_LOG(LogTemp, Display, TEXT("Dashed - Gravity disabled"));
+		const float MontageLength = AnimInstance->Montage_Play(DashMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
+
+		// has the montage played successfully?
+		if (MontageLength > 0.0f)
+		{
+			AnimInstance->Montage_SetEndDelegate(OnDashMontageEnded, DashMontage);
+		}
+	}
+}
+
 void APlatformingCharacter::Sprint()
 {
 	DoSprint();
