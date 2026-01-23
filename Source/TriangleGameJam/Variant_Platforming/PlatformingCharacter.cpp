@@ -460,7 +460,7 @@ void APlatformingCharacter::DoMove(float Right, float Forward)
 			{
 				// [Game Jam] 2D Mode Logic
 				// Move along world Y-axis (RightVector). Ignore Forward input (W/S).
-				AddMovementInput(FVector::RightVector, Right);
+				AddMovementInput(FVector::RightVector, -Right);
 			}
 			else
 			{
