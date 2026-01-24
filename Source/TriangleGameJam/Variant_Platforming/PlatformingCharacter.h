@@ -308,8 +308,8 @@ public:
 	// === For outside ===
 
 	// Player Get Hurt (For Spikes)
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	void TakeDamage();
+	/*UFUNCTION(BlueprintCallable, Category = "Health")
+	void TakeDamage();*/
 
 	// Update the Checkpoint (For Checkpoint)
 	UFUNCTION(BlueprintCallable, Category = "Checkpoint")

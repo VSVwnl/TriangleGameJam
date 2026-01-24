@@ -714,4 +714,3 @@ void APlatformingCharacter::SetIs2D(bool bNewIs2D)
 {
 	bIs2D = bNewIs2D;
 }
-}
