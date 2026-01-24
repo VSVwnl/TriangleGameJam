@@ -687,3 +687,13 @@ void APlatformingCharacter::ToggleSideScrollMode(bool bEnable)
 		// Restore any other 3D settings if needed (usually defaults are fine)
 	}
 }
+
+bool APlatformingCharacter::GetIs2D()
+{
+	return bIs2D;
+}
+
+void APlatformingCharacter::SetIs2D(bool bNewIs2D)
+{
+	bIs2D = bNewIs2D;
+}

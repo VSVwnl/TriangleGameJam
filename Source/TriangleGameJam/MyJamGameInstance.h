@@ -14,4 +14,7 @@ public:
 	// 比如 "Spawn_Book1", "Spawn_Book2"
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Flow")
 	FName TargetSpawnTag;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Transition")
+	uint8 bIsCharacter2D : 1;
 };

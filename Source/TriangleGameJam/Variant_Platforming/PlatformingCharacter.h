@@ -141,6 +141,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void DoSprint();
 
+	UFUNCTION(BlueprintCallable, Category = "Transition")
+	bool GetIs2D();
+
+	UFUNCTION(BlueprintCallable, Category = "Transition")
+	void SetIs2D(bool NewIs2D);
 protected:
 
 	/** Called from a delegate when the dash montage ends */
@@ -187,6 +192,9 @@ protected:
 	uint8 bHasDashed : 1;
 	uint8 bIsDashing : 1;
 	uint8 bIsSprinting : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Transition")
+	uint8 bIs2D : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	uint8 bIsMantled : 1;
