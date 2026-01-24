@@ -705,25 +705,13 @@ void APlatformingCharacter::ToggleSideScrollMode(bool bEnable)
 	}
 }
 
-// Hurting the character
-void APlatformingCharacter::TakeDamage()
+bool APlatformingCharacter::GetIs2D()
 {
-	CurrentHealth--;
+	return bIs2D;
+}
 
-	if (CurrentHealth > 0)
-	{
-		SetActorLocation(LastCheckpointLocation);
-		SetActorRotation(RespawnRotation);
-	}
-
-	else
-	{
-		SetActorLocation(InitialSpawnLocation);
-		SetActorRotation(RespawnRotation);
-
-		CurrentHealth = MaxHealth;
-
-		LastCheckpointLocation = InitialSpawnLocation;
-	}
-
+void APlatformingCharacter::SetIs2D(bool bNewIs2D)
+{
+	bIs2D = bNewIs2D;
+}
 }

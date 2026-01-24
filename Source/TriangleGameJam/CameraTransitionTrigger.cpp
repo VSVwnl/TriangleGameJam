@@ -3,6 +3,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
+#include "Variant_Platforming/PlatformingCharacter.h"
 
 // [新增] 引用你的 GameInstance
 #include "MyJamGameInstance.h" 
@@ -34,6 +35,21 @@ void ACameraTransitionTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedCom
 		if (APawn* Pawn = PC->GetPawn())
 		{
 			Pawn->DisableInput(PC);
+			// cast to aplatformcharacter
+			APlatformingCharacter* PlatformChar = Cast<APlatformingCharacter>(Pawn);
+			if (PlatformChar)
+			{
+				if (PlatformChar->GetIs2D())
+				{
+					PlatformChar->SetIs2D(!PlatformChar->GetIs2D());
+					GI->bIsCharacter2D = PlatformChar->GetIs2D();
+				}
+				else
+				{
+					PlatformChar->SetIs2D(!PlatformChar->GetIs2D());
+					GI->bIsCharacter2D = PlatformChar->GetIs2D();
+				}
+			}
 		}
 
 		PC->PlayerCameraManager->StartCameraFade(0.0f, 1.0f, FadeDuration, FLinearColor::Black, false, true);
