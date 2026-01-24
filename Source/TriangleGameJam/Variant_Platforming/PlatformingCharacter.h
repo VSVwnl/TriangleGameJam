@@ -286,4 +286,33 @@ private:
 	bool bForwardHoldActive = false;
 	float ClimbUpHoldThreshold = 0.4f; // seconds required holding forward to climb (tweakable)
 
+	protected:
+		// === Health System ===
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+		int32 MaxHealth = 3;
+
+		UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+		int32 CurrentHealth;
+
+		// === ReStart System ===
+		// Record the initial position (PlayerStart)
+		FVector InitialSpawnLocation;
+
+		// Record the last checkpoint position
+		FVector LastCheckpointLocation;
+
+		// Record the respawn rotation
+		FRotator RespawnRotation;
+
+public:
+	// === For outside ===
+
+	// Player Get Hurt (For Spikes)
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void TakeDamage();
+
+	// Update the Checkpoint (For Checkpoint)
+	UFUNCTION(BlueprintCallable, Category = "Checkpoint")
+	void UpdateCheckpoint(FVector NewLocation);
+
 };
