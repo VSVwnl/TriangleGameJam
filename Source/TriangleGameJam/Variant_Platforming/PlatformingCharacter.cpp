@@ -631,8 +631,25 @@ void APlatformingCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 1. Full Health at Start
+	CurrentHealth = MaxHealth;
+
+	// 2. Register the Location and Rotation as the Respawn Point
+	InitialSpawnLocation = GetActorLocation();
+	RespawnRotation = GetActorRotation();
+
+	// 3. Set Default Checkpoint is the Initial Spawn Point
+	LastCheckpointLocation = InitialSpawnLocation;
+
 	// Store the default speed
 	DefaultMaxWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+}
+
+void APlatformingCharacter::UpdateCheckpoint(FVector NewLocation)
+{
+	LastCheckpointLocation = NewLocation;
+	
+	UE_LOG(LogTemp, Log, TEXT("Checkpoint Saved!"));
 }
 
 void APlatformingCharacter::Tick(float DeltaTime)
@@ -686,4 +703,27 @@ void APlatformingCharacter::ToggleSideScrollMode(bool bEnable)
 
 		// Restore any other 3D settings if needed (usually defaults are fine)
 	}
+}
+
+// Hurting the character
+void APlatformingCharacter::TakeDamage()
+{
+	CurrentHealth--;
+
+	if (CurrentHealth > 0)
+	{
+		SetActorLocation(LastCheckpointLocation);
+		SetActorRotation(RespawnRotation);
+	}
+
+	else
+	{
+		SetActorLocation(InitialSpawnLocation);
+		SetActorRotation(RespawnRotation);
+
+		CurrentHealth = MaxHealth;
+
+		LastCheckpointLocation = InitialSpawnLocation;
+	}
+
 }
