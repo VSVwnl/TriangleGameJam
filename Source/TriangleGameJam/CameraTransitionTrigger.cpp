@@ -1,51 +1,54 @@
 ﻿#include "CameraTransitionTrigger.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "GameFramework/Character.h"
-#include "PlatformingCharacter.h" 
+#include "GameFramework/PlayerController.h"
+#include "TimerManager.h"
+
+// [新增] 引用你的 GameInstance
+#include "MyJamGameInstance.h" 
 
 ACameraTransitionTrigger::ACameraTransitionTrigger()
 {
 	TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
 	RootComponent = TriggerBox;
 	TriggerBox->SetCollisionProfileName(TEXT("Trigger"));
-
 	TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ACameraTransitionTrigger::OnOverlapBegin);
 }
 
 void ACameraTransitionTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// 【关键点】转换成 APlatformingCharacter
-	APlatformingCharacter* PlayerChar = Cast<APlatformingCharacter>(OtherActor);
+	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
 
-	if (PlayerChar)
+	if (PC && !LevelToLoad.IsNone() && OtherActor == PC->GetPawn())
 	{
-		APlayerController* PC = Cast<APlayerController>(PlayerChar->GetController());
-		if (PC)
+		// === [核心修改] 存入记忆 ===
+		// 获取 GameInstance
+		UMyJamGameInstance* GI = Cast<UMyJamGameInstance>(GetGameInstance());
+		if (GI && !SaveReturnTag.IsNone())
 		{
-			AActor* NewViewTarget = nullptr;
-
-			if (bSwitchToFixedCamera && TargetCameraActor)
-			{
-				// === 进入 2D ===
-				NewViewTarget = TargetCameraActor;
-
-				// 调用你在 PlatformingCharacter 里写的变身函数
-				PlayerChar->ToggleSideScrollMode(true);
-			}
-			else
-			{
-				// === 回到 3D ===
-				NewViewTarget = PlayerChar;
-
-				// 解除变身
-				PlayerChar->ToggleSideScrollMode(false);
-			}
-
-			if (NewViewTarget)
-			{
-				PC->SetViewTargetWithBlend(NewViewTarget, BlendTime, VTBlend_Cubic, 0.0f, true);
-			}
+			// 把 "Spawn_Book1" 这种标签存下来
+			GI->TargetSpawnTag = SaveReturnTag;
 		}
+		// =========================
+
+		if (APawn* Pawn = PC->GetPawn())
+		{
+			Pawn->DisableInput(PC);
+		}
+
+		PC->PlayerCameraManager->StartCameraFade(0.0f, 1.0f, FadeDuration, FLinearColor::Black, false, true);
+
+		GetWorld()->GetTimerManager().SetTimer(
+			TransitionTimerHandle,
+			this,
+			&ACameraTransitionTrigger::PerformLevelTransition,
+			FadeDuration,
+			false
+		);
 	}
+}
+
+void ACameraTransitionTrigger::PerformLevelTransition()
+{
+	UGameplayStatics::OpenLevel(this, LevelToLoad);
 }
