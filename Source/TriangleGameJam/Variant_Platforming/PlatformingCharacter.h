@@ -293,6 +293,14 @@ private:
 
 		UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
 		int32 CurrentHealth;
+	
+	    //This will allow your C++ code to tell the Blueprint exactly
+		UFUNCTION(BlueprintImplementableEvent, Category = "Health")
+		void OnHealthUpdate(int32 NewHealth);
+	
+	
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+		FVector ManualRespawnLocation;
 
 		// === ReStart System ===
 		// Record the initial position (PlayerStart)
@@ -315,4 +323,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Checkpoint")
 	void UpdateCheckpoint(FVector NewLocation);
 
+	// Add this to your Protected section
+	UFUNCTION(BlueprintImplementableEvent, Category = "Health")
+	void OnPlayerDied();
+
+	// Add this to your Public section so BP can call it
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void FinalizeRespawn();
 };

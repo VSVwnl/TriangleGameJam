@@ -715,25 +715,56 @@ void APlatformingCharacter::SetIs2D(bool bNewIs2D)
 	bIs2D = bNewIs2D;
 }
 
-// Hurting the character
+//Hurting the character
 void APlatformingCharacter::TakeDamage()
 {
 	CurrentHealth--;
+	OnHealthUpdate(CurrentHealth);
 
+	APlayerController* PC = Cast<APlayerController>(GetController());
+    
 	if (CurrentHealth > 0)
 	{
+		// Standard respawn
 		SetActorLocation(LastCheckpointLocation);
-		SetActorRotation(RespawnRotation);
 	}
-
 	else
 	{
-		SetActorLocation(InitialSpawnLocation);
-		SetActorRotation(RespawnRotation);
+		if (PC && PC->PlayerCameraManager)
+		{
+			// 1. Fade to Black
+			PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, 4.f, FLinearColor::Black, true, true);
 
-		CurrentHealth = MaxHealth;
+			// 2. Delay the teleport so the player doesn't see it
+			FTimerHandle RespawnTimer;
+			GetWorldTimerManager().SetTimer(RespawnTimer, [this, PC]()
+			{
+				// Teleport Logic
+				SetActorLocation(InitialSpawnLocation);
+				SetActorRotation(RespawnRotation);
+				CurrentHealth = MaxHealth;
+				OnHealthUpdate(CurrentHealth);
 
-		LastCheckpointLocation = InitialSpawnLocation;
+				// 3. Fade back in
+				if (PC && PC->PlayerCameraManager)
+				{
+					PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, 4.2f, FLinearColor::Black, true, false);
+				}
+			}, 0.5f, false);
+		}
 	}
+}
 
+//Health == 0
+void APlatformingCharacter::FinalizeRespawn()
+{
+	// This logic is moved from the old TakeDamage 'else' block
+	SetActorLocation(InitialSpawnLocation);
+	SetActorRotation(RespawnRotation);
+
+	CurrentHealth = MaxHealth;
+	LastCheckpointLocation = InitialSpawnLocation;
+
+	// Reset hearts in the UI
+	OnHealthUpdate(CurrentHealth);
 }
