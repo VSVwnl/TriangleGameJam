@@ -186,7 +186,7 @@ void APlatformingCharacter::CheckForMantle()
 		true                    // bIgnoreSelf
 	);
 
-	if (bWallHit && WallHit.Distance > 0.f)
+	if (bWallHit && WallHit.Distance > 0.f && WallHit.GetActor()->ActorHasTag("CanMantle"))
 	{
 		// Grab Alignment and Rotation
 
