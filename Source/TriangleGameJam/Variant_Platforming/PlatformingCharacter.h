@@ -69,6 +69,7 @@ protected:
 	/** Sprint Input Action */
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* SprintAction;
+	
 
 public:
 
@@ -112,7 +113,7 @@ protected:
 	void StopLedgeGrab();
 
 	// Completes the ledge climb and places the character on top of the ledge
-	UFUNCTION(BlueprintImplementableEvent, Category = "MyCategory")
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Mantle")
 	void ClimbUpLedge();
 
 public:
@@ -141,6 +142,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void DoSprint();
 
+	UFUNCTION(BlueprintCallable, Category = "Transition")
+	bool GetIs2D();
+
+	UFUNCTION(BlueprintCallable, Category = "Transition")
+	void SetIs2D(bool NewIs2D);
 protected:
 
 	/** Called from a delegate when the dash montage ends */
@@ -187,6 +193,9 @@ protected:
 	uint8 bHasDashed : 1;
 	uint8 bIsDashing : 1;
 	uint8 bIsSprinting : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Transition")
+	uint8 bIs2D : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	uint8 bIsMantled : 1;
@@ -250,6 +259,17 @@ protected:
 	/** World time when the ledge was last released (used to block immediate regrab) */
 	float LastLedgeReleaseTime = -1000.0f;
 
+	// Component we are currently mantled to (so we follow moving platforms)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mantling")
+	UPrimitiveComponent* MantledComponent = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mantling")
+	AActor* MantledActor = nullptr;
+	
+	// Relative location to maintain while mantled
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mantling")
+	FVector MantleWorldLocation;
+
 public:
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
@@ -285,6 +305,14 @@ private:
 
 		UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
 		int32 CurrentHealth;
+	
+	    //This will allow your C++ code to tell the Blueprint exactly
+		UFUNCTION(BlueprintImplementableEvent, Category = "Health")
+		void OnHealthUpdate(int32 NewHealth);
+	
+	
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+		FVector ManualRespawnLocation;
 
 		// === ReStart System ===
 		// Record the initial position (PlayerStart)
@@ -295,6 +323,10 @@ private:
 
 		// Record the respawn rotation
 		FRotator RespawnRotation;
+	
+		//Sound File
+		UPROPERTY(EditAnywhere, Category = "Audio")
+		class USoundBase* DashSound;
 
 public:
 	// === For outside ===
@@ -307,4 +339,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Checkpoint")
 	void UpdateCheckpoint(FVector NewLocation);
 
+	// Add this to your Protected section
+	UFUNCTION(BlueprintImplementableEvent, Category = "Health")
+	void OnPlayerDied();
+
+	// Add this to your Public section so BP can call it
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void FinalizeRespawn();
 };

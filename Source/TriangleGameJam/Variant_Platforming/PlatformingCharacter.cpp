@@ -12,6 +12,7 @@
 #include "DrawDebugHelpers.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Engine/EngineTypes.h"
+#include "Kismet/GameplayStatics.h"
 
 
 APlatformingCharacter::APlatformingCharacter()
@@ -109,6 +110,8 @@ void APlatformingCharacter::DoDash()
 	// ignore the input if we've already dashed and have yet to reset
 	if (bHasDashed || bIsDashing || bIsMantled)
 		return;
+	
+	UGameplayStatics::PlaySound2D(this, DashSound);
 
 	// raise the dash flags
 	bIsDashing = true;
@@ -186,7 +189,7 @@ void APlatformingCharacter::CheckForMantle()
 		true                    // bIgnoreSelf
 	);
 
-	if (bWallHit && WallHit.Distance > 0.f)
+	if (bWallHit && WallHit.Distance > 0.f && WallHit.GetActor()->ActorHasTag("CanMantle"))
 	{
 		// Grab Alignment and Rotation
 
@@ -216,8 +219,12 @@ void APlatformingCharacter::CheckForMantle()
 			UE_LOG(LogTemp, Display, TEXT("Ledge detected, starting mantle"));
 			bIsMantled = true;
 
-			if (const AActor* HitActor = AlignmentHit.GetActor())
+			if (AActor* HitActor = AlignmentHit.GetActor())
 			{
+				// store the component we hit so we can attach to it and follow its movement
+				MantledComponent = AlignmentHit.GetComponent();
+				MantledActor = HitActor;
+				
 				FVector Origin;
 				FVector BoxExtent;
 				HitActor->GetActorBounds(false, Origin, BoxExtent);
@@ -236,23 +243,28 @@ void APlatformingCharacter::CheckForMantle()
 
 void APlatformingCharacter::StartLedgeGrab(const FVector& LedgeLocation, const FRotator& LedgeNormal)
 {
-	// snap exactly to the ledge
+	// snap exactly to the ledge (preserve world transform on attach)
 	SetActorLocation(LedgeLocation, false, nullptr, ETeleportType::TeleportPhysics);
 	SetActorRotation(LedgeNormal);
 
-
 	// stop any velocity and fully disable movement so character stays locked in place
 	GetCharacterMovement()->StopMovementImmediately();
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None); // sets movement mode to MOVE_None
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
 
 	// record mantle start time and reset forward-hold
 	MantleStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	MantleForwardHoldStartTime = 0.0f;
 	bForwardHoldActive = false;
 
+	// If we have a valid component that we hit, attach to it so the character follows moving platforms
+	if (MantledComponent && MantledComponent->IsRegistered())
+	{
+		// Keep world transform so we remain in the exact snapped location, but become a child of the platform.
+		AttachToComponent(MantledComponent, FAttachmentTransformRules::KeepWorldTransform);
+	}
+
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
-		// don't restart the montage if it's already playing
 		if (AnimInstance->Montage_IsPlaying(LedgeGrabMontage))
 			return;
 
@@ -263,6 +275,19 @@ void APlatformingCharacter::StartLedgeGrab(const FVector& LedgeLocation, const F
 
 void APlatformingCharacter::StopLedgeGrab()
 {
+	// Detach from any mantled component first so we don't remain parented to a moved/destroyed actor
+	if (MantledComponent)
+	{
+		DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		MantledComponent = nullptr;
+	}
+
+	if (MantledActor)
+	{
+		MantledActor = nullptr;
+		MantleWorldLocation = FVector(0.f, 0.f, 0.f);
+	}
+
 	if (!GetCharacterMovement()->IsFalling())
 	{
 		if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
@@ -460,7 +485,7 @@ void APlatformingCharacter::DoMove(float Right, float Forward)
 			{
 				// [Game Jam] 2D Mode Logic
 				// Move along world Y-axis (RightVector). Ignore Forward input (W/S).
-				AddMovementInput(FVector::RightVector, -Right);
+				AddMovementInput(FVector::RightVector, Right);
 			}
 			else
 			{
@@ -494,38 +519,6 @@ void APlatformingCharacter::DoJumpStart()
 	{
 		// End the ledge grab and allow movement
 		StopLedgeGrab();
-		//GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
-
-
-		// Try to perform a wall-jump off the ledge
-		// FHitResult OutHit;
-		// const FVector TraceStart = GetActorLocation();
-		// const FVector TraceEnd = TraceStart + (GetActorForwardVector() * WallJumpTraceDistance);
-		// const FCollisionShape TraceShape = FCollisionShape::MakeSphere(WallJumpTraceRadius);
-		//
-		// FCollisionQueryParams QueryParams;
-		// QueryParams.AddIgnoredActor(this);
-		//
-		// if (GetWorld()->SweepSingleByChannel(OutHit, TraceStart, TraceEnd, FQuat(), ECollisionChannel::ECC_Visibility, TraceShape, QueryParams))
-		// {
-		// 	// Face away from the wall and apply wall-jump impulse
-		// 	FRotator WallOrientation = OutHit.ImpactNormal.ToOrientationRotator();
-		// 	WallOrientation.Pitch = 0.0f;
-		// 	WallOrientation.Roll = 0.0f;
-		// 	SetActorRotation(WallOrientation);
-		//
-		// 	const FVector WallJumpImpulse = (OutHit.ImpactNormal * WallJumpBounceImpulse) + (FVector::UpVector * WallJumpVerticalImpulse);
-		// 	LaunchCharacter(WallJumpImpulse, true, true);
-		//
-		// 	bHasWallJumped = true;
-		// 	if (GetWorld())
-		// 	{
-		// 		GetWorld()->GetTimerManager().SetTimer(WallJumpTimer, this, &APlatformingCharacter::ResetWallJump, DelayBetweenWallJumps, false);
-		// 	}
-		//
-		// 	UE_LOG(LogTemp, Display, TEXT("Wall Jump from ledge"));
-		// }
-		// return;
 	}
 
 	// handle special jump cases
@@ -662,6 +655,14 @@ void APlatformingCharacter::Tick(float DeltaTime)
 		// Only check for mantle when falling
 		CheckForMantle();
 	}
+
+	if (bIsMantled)
+	{
+		if (MantledActor != nullptr)
+		{
+			MantleWorldLocation = MantledActor->GetActorLocation();
+		}
+	}
 }
 
 void APlatformingCharacter::StopSprint()
@@ -705,25 +706,66 @@ void APlatformingCharacter::ToggleSideScrollMode(bool bEnable)
 	}
 }
 
-// Hurting the character
+bool APlatformingCharacter::GetIs2D()
+{
+	return bIs2D;
+}
+
+void APlatformingCharacter::SetIs2D(bool bNewIs2D)
+{
+	bIs2D = bNewIs2D;
+}
+
+//Hurting the character
 void APlatformingCharacter::TakeDamage()
 {
 	CurrentHealth--;
+	OnHealthUpdate(CurrentHealth);
 
+	APlayerController* PC = Cast<APlayerController>(GetController());
+    
 	if (CurrentHealth > 0)
 	{
+		// Standard respawn
 		SetActorLocation(LastCheckpointLocation);
-		SetActorRotation(RespawnRotation);
 	}
-
 	else
 	{
-		SetActorLocation(InitialSpawnLocation);
-		SetActorRotation(RespawnRotation);
+		if (PC && PC->PlayerCameraManager)
+		{
+			// 1. Fade to Black
+			PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, 4.f, FLinearColor::Black, true, true);
 
-		CurrentHealth = MaxHealth;
+			// 2. Delay the teleport so the player doesn't see it
+			FTimerHandle RespawnTimer;
+			GetWorldTimerManager().SetTimer(RespawnTimer, [this, PC]()
+			{
+				// Teleport Logic
+				SetActorLocation(InitialSpawnLocation);
+				SetActorRotation(RespawnRotation);
+				CurrentHealth = MaxHealth;
+				OnHealthUpdate(CurrentHealth);
 
-		LastCheckpointLocation = InitialSpawnLocation;
+				// 3. Fade back in
+				if (PC && PC->PlayerCameraManager)
+				{
+					PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, 4.2f, FLinearColor::Black, true, false);
+				}
+			}, 0.5f, false);
+		}
 	}
+}
 
+//Health == 0
+void APlatformingCharacter::FinalizeRespawn()
+{
+	// This logic is moved from the old TakeDamage 'else' block
+	SetActorLocation(InitialSpawnLocation);
+	SetActorRotation(RespawnRotation);
+
+	CurrentHealth = MaxHealth;
+	LastCheckpointLocation = InitialSpawnLocation;
+
+	// Reset hearts in the UI
+	OnHealthUpdate(CurrentHealth);
 }
