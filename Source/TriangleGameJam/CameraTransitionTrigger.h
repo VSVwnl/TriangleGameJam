@@ -14,6 +14,7 @@ public:
 	ACameraTransitionTrigger();
 
 protected:
+	
 	UPROPERTY(VisibleAnywhere)
 	class UBoxComponent* TriggerBox;
 
