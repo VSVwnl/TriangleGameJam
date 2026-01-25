@@ -112,7 +112,7 @@ protected:
 	void StopLedgeGrab();
 
 	// Completes the ledge climb and places the character on top of the ledge
-	UFUNCTION(BlueprintImplementableEvent, Category = "MyCategory")
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Mantle")
 	void ClimbUpLedge();
 
 public:
@@ -257,6 +257,17 @@ protected:
 
 	/** World time when the ledge was last released (used to block immediate regrab) */
 	float LastLedgeReleaseTime = -1000.0f;
+
+	// Component we are currently mantled to (so we follow moving platforms)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mantling")
+	UPrimitiveComponent* MantledComponent = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mantling")
+	AActor* MantledActor = nullptr;
+	
+	// Relative location to maintain while mantled
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mantling")
+	FVector MantleWorldLocation;
 
 public:
 	/** Returns CameraBoom subobject **/
