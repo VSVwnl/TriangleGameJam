@@ -12,6 +12,7 @@
 #include "DrawDebugHelpers.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Engine/EngineTypes.h"
+#include "Kismet/GameplayStatics.h"
 
 
 APlatformingCharacter::APlatformingCharacter()
@@ -109,6 +110,8 @@ void APlatformingCharacter::DoDash()
 	// ignore the input if we've already dashed and have yet to reset
 	if (bHasDashed || bIsDashing || bIsMantled)
 		return;
+	
+	UGameplayStatics::PlaySound2D(this, DashSound);
 
 	// raise the dash flags
 	bIsDashing = true;

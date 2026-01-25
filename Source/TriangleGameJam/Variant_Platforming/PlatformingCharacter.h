@@ -69,6 +69,7 @@ protected:
 	/** Sprint Input Action */
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* SprintAction;
+	
 
 public:
 
@@ -322,6 +323,10 @@ private:
 
 		// Record the respawn rotation
 		FRotator RespawnRotation;
+	
+		//Sound File
+		UPROPERTY(EditAnywhere, Category = "Audio")
+		class USoundBase* DashSound;
 
 public:
 	// === For outside ===
