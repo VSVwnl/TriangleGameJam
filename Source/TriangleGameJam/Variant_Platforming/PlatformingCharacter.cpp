@@ -782,3 +782,10 @@ void APlatformingCharacter::FinalizeRespawn()
 	// Reset hearts in the UI
 	OnHealthUpdate(CurrentHealth);
 }
+
+// PlatformingCharacter.cpp
+
+void APlatformingCharacter::ResetRespawnState()
+{
+	bIsRespawning = false;
+}
