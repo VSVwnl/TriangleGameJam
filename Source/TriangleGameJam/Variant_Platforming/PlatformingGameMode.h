@@ -18,4 +18,7 @@ public:
 
 	/** Constructor */
 	APlatformingGameMode();
+	
+	/** [NEW] Handles spawning players at a specific tagged location */
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 };
