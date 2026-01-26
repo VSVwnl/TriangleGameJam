@@ -305,6 +305,15 @@ private:
 
 		UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
 		int32 CurrentHealth;
+
+		// [新增]防止连续扣血的“无敌锁”
+		bool bIsRespawning = false;
+
+		// [新增]重置无敌状态的计时器
+		FTimerHandle TimerHandle_RespawnReset;
+
+		// [新增]重置函数
+		void ResetRespawnState();
 	
 	    //This will allow your C++ code to tell the Blueprint exactly
 		UFUNCTION(BlueprintImplementableEvent, Category = "Health")
