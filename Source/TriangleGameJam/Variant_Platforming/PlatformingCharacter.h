@@ -344,6 +344,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void TakeDamage();
 
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void RespawnPlayerWithHealth();
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void RespawnPlayerNoHealth();
+
 	// Update the Checkpoint (For Checkpoint)
 	UFUNCTION(BlueprintCallable, Category = "Checkpoint")
 	void UpdateCheckpoint(FVector NewLocation);

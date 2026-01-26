@@ -631,9 +631,6 @@ void APlatformingCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 1. Full Health at Start
-	CurrentHealth = MaxHealth;
-
 	// 2. Register the Location and Rotation as the Respawn Point
 	InitialSpawnLocation = GetActorLocation();
 	RespawnRotation = GetActorRotation();
@@ -726,6 +723,18 @@ void APlatformingCharacter::SetIs2D(bool bNewIs2D)
 //Hurting the character
 void APlatformingCharacter::TakeDamage()
 {
+	// 3. 【紧急刹车】
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->StopMovementImmediately();
+		GetCharacterMovement()->Velocity = FVector::ZeroVector;
+		GetCharacterMovement()->ClearAccumulatedForces();
+	}
+	
+}
+
+void APlatformingCharacter::RespawnPlayerWithHealth()
+{
 	// 1. 【门卫检查】如果已经正在重置/复活中，直接退出
 	if (bIsRespawning)
 	{
@@ -734,46 +743,36 @@ void APlatformingCharacter::TakeDamage()
 
 	// 2. 【上锁】
 	bIsRespawning = true;
+	
+	
+	// 活着：回检查点
+	SetActorLocation(LastCheckpointLocation);
+	SetActorRotation(RespawnRotation);
 
-	// 3. 【紧急刹车】
-	if (GetCharacterMovement())
+	GetWorldTimerManager().SetTimer(TimerHandle_RespawnReset, this, &APlatformingCharacter::ResetRespawnState, 0.5f, false);
+	
+}
+
+void APlatformingCharacter::RespawnPlayerNoHealth()
+{
+	if (bIsRespawning)
 	{
-		GetCharacterMovement()->StopMovementImmediately();
-		GetCharacterMovement()->Velocity = FVector::ZeroVector;
-		GetCharacterMovement()->ClearAccumulatedForces();
+		return;
 	}
 
-	// 4. 【扣血】
-	CurrentHealth--;
+	// 2. 【上锁】
+	bIsRespawning = true;
+	
+	// 死了：回出生点
+	SetActorLocation(InitialSpawnLocation);
+	SetActorRotation(RespawnRotation);
 
-	// ==========================================
-	// [必须加这行] 告诉蓝图 UI 血量变了！
-	// 如果漏了这行，虽然后台血扣了，但前台 UI 还是满的
-	OnHealthUpdate(CurrentHealth);
-	// ==========================================
-
-	if (CurrentHealth > 0)
-	{
-		// 活着：回检查点
-		SetActorLocation(LastCheckpointLocation);
-		SetActorRotation(RespawnRotation);
-	}
-	else
-	{
-		// 死了：回出生点
-		SetActorLocation(InitialSpawnLocation);
-		SetActorRotation(RespawnRotation);
-
-		CurrentHealth = MaxHealth;
-
-		// 复活后也要通知 UI 更新回满血状态！
-		OnHealthUpdate(CurrentHealth); // <--- 这里也要加！
-
-		LastCheckpointLocation = InitialSpawnLocation;
-	}
+	LastCheckpointLocation = InitialSpawnLocation;
+	
 
 	// 5. 【设置定时器解锁】
 	GetWorldTimerManager().SetTimer(TimerHandle_RespawnReset, this, &APlatformingCharacter::ResetRespawnState, 0.5f, false);
+	
 }
 
 //Health == 0
@@ -782,12 +781,7 @@ void APlatformingCharacter::FinalizeRespawn()
 	// This logic is moved from the old TakeDamage 'else' block
 	SetActorLocation(InitialSpawnLocation);
 	SetActorRotation(RespawnRotation);
-
-	CurrentHealth = MaxHealth;
 	LastCheckpointLocation = InitialSpawnLocation;
-
-	// Reset hearts in the UI
-	OnHealthUpdate(CurrentHealth);
 }
 
 // PlatformingCharacter.cpp
