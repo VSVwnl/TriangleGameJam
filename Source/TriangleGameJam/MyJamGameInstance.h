@@ -17,4 +17,11 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Transition")
 	uint8 bIsCharacter2D : 1;
+	
+	// === [NEW] Quest Progress Variables ===
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quest Progress")
+	bool bReadBook1 = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quest Progress")
+	bool bReadBook2 = false;
 };
