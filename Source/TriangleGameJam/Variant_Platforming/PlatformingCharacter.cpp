@@ -308,6 +308,13 @@ void APlatformingCharacter::StopLedgeGrab()
 		// reset forward-hold state
 		MantleForwardHoldStartTime = 0.0f;
 		bForwardHoldActive = false;
+
+		// Reset wall jump and double jump flags and dash
+		bHasWallJumped = false;
+		bHasDoubleJumped = false;
+		bHasDashed = false;
+		bIsDashing = false;
+		
 	}
 }
 
