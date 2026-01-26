@@ -485,7 +485,7 @@ void APlatformingCharacter::DoMove(float Right, float Forward)
 			{
 				// [Game Jam] 2D Mode Logic
 				// Move along world Y-axis (RightVector). Ignore Forward input (W/S).
-				AddMovementInput(FVector::RightVector, -Right);
+				AddMovementInput(FVector::RightVector, Right);
 			}
 			else
 			{
@@ -719,41 +719,54 @@ void APlatformingCharacter::SetIs2D(bool bNewIs2D)
 //Hurting the character
 void APlatformingCharacter::TakeDamage()
 {
-	CurrentHealth--;
-	OnHealthUpdate(CurrentHealth);
+	// 1. 【门卫检查】如果已经正在重置/复活中，直接退出
+	if (bIsRespawning)
+	{
+		return;
+	}
 
-	APlayerController* PC = Cast<APlayerController>(GetController());
-    
+	// 2. 【上锁】
+	bIsRespawning = true;
+
+	// 3. 【紧急刹车】
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->StopMovementImmediately();
+		GetCharacterMovement()->Velocity = FVector::ZeroVector;
+		GetCharacterMovement()->ClearAccumulatedForces();
+	}
+
+	// 4. 【扣血】
+	CurrentHealth--;
+
+	// ==========================================
+	// [必须加这行] 告诉蓝图 UI 血量变了！
+	// 如果漏了这行，虽然后台血扣了，但前台 UI 还是满的
+	OnHealthUpdate(CurrentHealth);
+	// ==========================================
+
 	if (CurrentHealth > 0)
 	{
-		// Standard respawn
+		// 活着：回检查点
 		SetActorLocation(LastCheckpointLocation);
+		SetActorRotation(RespawnRotation);
 	}
 	else
 	{
-		if (PC && PC->PlayerCameraManager)
-		{
-			// 1. Fade to Black
-			PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, 4.f, FLinearColor::Black, true, true);
+		// 死了：回出生点
+		SetActorLocation(InitialSpawnLocation);
+		SetActorRotation(RespawnRotation);
 
-			// 2. Delay the teleport so the player doesn't see it
-			FTimerHandle RespawnTimer;
-			GetWorldTimerManager().SetTimer(RespawnTimer, [this, PC]()
-			{
-				// Teleport Logic
-				SetActorLocation(InitialSpawnLocation);
-				SetActorRotation(RespawnRotation);
-				CurrentHealth = MaxHealth;
-				OnHealthUpdate(CurrentHealth);
+		CurrentHealth = MaxHealth;
 
-				// 3. Fade back in
-				if (PC && PC->PlayerCameraManager)
-				{
-					PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, 4.2f, FLinearColor::Black, true, false);
-				}
-			}, 0.5f, false);
-		}
+		// 复活后也要通知 UI 更新回满血状态！
+		OnHealthUpdate(CurrentHealth); // <--- 这里也要加！
+
+		LastCheckpointLocation = InitialSpawnLocation;
 	}
+
+	// 5. 【设置定时器解锁】
+	GetWorldTimerManager().SetTimer(TimerHandle_RespawnReset, this, &APlatformingCharacter::ResetRespawnState, 0.5f, false);
 }
 
 //Health == 0
